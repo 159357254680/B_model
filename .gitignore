@@ -1,0 +1,11 @@
+# 生成数据（A 模块会重新生成，C 模块会重新计算）
+A_output/
+B_output/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+
+# macOS
+.DS_Store
