@@ -3,14 +3,17 @@ import os
 import numpy as np
 from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score
 from openai import OpenAI
+from dotenv import load_dotenv
+
+load_dotenv()
 
 
 def train_llm(x_train, y_train, x_test, y_test, vectorizer=None, **_kw):
     print("  大语言模型: 调用 API 做情感分类 ...")
 
-    api_key = os.environ.get("LLM_API_KEY", "")
-    base_url = os.environ.get("LLM_BASE_URL", "https://api.deepseek.com")
-    model = os.environ.get("LLM_MODEL", "deepseek-chat")
+    api_key = os.getenv("LLM_API_KEY", "")
+    base_url = os.getenv("LLM_BASE_URL", "https://api.deepseek.com")
+    model = os.getenv("LLM_MODEL", "deepseek-chat")
 
     if not api_key:
         raise RuntimeError("请设置 LLM_API_KEY 环境变量")
