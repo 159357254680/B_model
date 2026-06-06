@@ -59,6 +59,8 @@ def train_all_models(x_train, y_train, x_test, y_test, vectorizer):
     from models.naive_bayes import train_naive_bayes
     from models.logistic_regression import train_logistic_regression
     from models.feature_selection import train_with_feature_selection
+    from models.logistic_regression_features import train_logistic_regression_features
+    from models.sentiwordnet import train_sentiwordnet
     from models.llm import train_llm
 
     models = [
@@ -66,6 +68,8 @@ def train_all_models(x_train, y_train, x_test, y_test, vectorizer):
         ("朴素贝叶斯",     train_naive_bayes),
         ("逻辑回归",       train_logistic_regression),
         ("特征选择+LR",    train_with_feature_selection),
+        ("新特征+LR",      train_logistic_regression_features),
+        ("SentiWordNet",   train_sentiwordnet),
         ("大语言模型",     train_llm),
     ]
 
@@ -86,7 +90,7 @@ def train_all_models(x_train, y_train, x_test, y_test, vectorizer):
             print(f"  结果: acc={metrics['accuracy']:.4f}  f1={metrics['f1']:.4f}")
 
             # 规则系统和 LLM 不能 pickle，不参与最优模型选择
-            if metrics["f1"] > best_f1 and name not in ("产生式规则系统", "大语言模型"):
+            if metrics["f1"] > best_f1 and name not in ("产生式规则系统", "大语言模型", "SentiWordNet"):
                 best_f1 = metrics["f1"]
                 best_model = model
                 best_metrics = metrics

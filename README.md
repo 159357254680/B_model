@@ -2,9 +2,9 @@
 
 ## 概述
 
-B 模块负责从 A 模块接收预处理后的数据，训练并对比 5 种分类模型，选出可序列化的最优模型交付给 C 模块。
+B 模块负责从 A 模块接收预处理后的数据，训练并对比 7 种分类模型，选出可序列化的最优模型交付给 C 模块。
 
-**核心定位**：只做「读入 → 训练 → 输出」，不自己生产数据，不自己画图表。
+**核心定位**：读入 → 训练 → 输出 + 可视化分析。
 
 ## 项目结构
 
@@ -12,16 +12,20 @@ B 模块负责从 A 模块接收预处理后的数据，训练并对比 5 种分
 B_model/
 ├── config.py               # 路径和接口约定
 ├── train.py                # 主程序入口
+├── analyze.py              # 可视化分析（模型对比图）
 ├── mock_data.py            # 模拟 A 模块数据（独立测试用）
 ├── requirements.txt        # Python 依赖
-├── models/                 # 5 种模型实现
-│   ├── rule_based.py           # 产生式规则系统
-│   ├── naive_bayes.py          # 朴素贝叶斯
-│   ├── logistic_regression.py  # 逻辑回归
-│   ├── feature_selection.py    # 特征选择 + LR
-│   └── llm.py                  # 大语言模型
+├── models/                 # 7 种模型实现
+│   ├── rule_based.py                # 产生式规则系统
+│   ├── naive_bayes.py               # 朴素贝叶斯
+│   ├── logistic_regression.py       # 逻辑回归
+│   ├── feature_selection.py         # 特征选择 + LR
+│   ├── logistic_regression_features.py  # 新特征工程 + LR
+│   ├── sentiwordnet.py              # SentiWordNet 情感分析
+│   └── llm.py                       # 大语言模型
 ├── A_output/               # A 模块的输出（B 读取）
 └── B_output/               # B 模块的输出（C 读取）
+    └── charts/             # 可视化图表输出
 ```
 
 ## 数据流
@@ -95,12 +99,14 @@ python train.py
     "朴素贝叶斯":     { "accuracy": 0.856, "f1": 0.853 },
     "逻辑回归":       { "accuracy": 0.889, "f1": 0.889 },
     "特征选择+LR":    { "accuracy": 0.877, "f1": 0.877 },
+    "新特征+LR":      { "accuracy": 0.892, "f1": 0.892 },
+    "SentiWordNet":   { "accuracy": 0.681, "f1": 0.712 },
     "大语言模型":     { "accuracy": 0.852, "f1": 0.848 }
   }
 }
 ```
 
-## 5 种模型
+## 7 种模型
 
 | 模型 | 需要训练 | 可 pickle | 说明 |
 |------|---------|----------|------|
@@ -108,13 +114,22 @@ python train.py
 | 朴素贝叶斯 | 是 | 是 | MultinomialNB / ComplementNB，网格搜索 alpha |
 | 逻辑回归 | 是 | 是 | L2 正则，网格搜索 C，可提取特征权重 |
 | 特征选择+LR | 是 | 是 | Chi2 / 互信息 + SelectKBest + LR Pipeline |
+| 新特征+LR | 是 | 是 | TF-IDF + 8 个手工特征（词数、情感词密度、标点等）|
+| SentiWordNet | 否 | 否 | WordNet 情感词典打分，计算 pos/neg/obj 分数 |
 | 大语言模型 | 否 | 否 | 调用 OpenAI 兼容 API（默认 DeepSeek）|
 
-规则系统和 LLM 返回的 model 不可 pickle，不参与最优模型选择，仅在指标对比中展示。
+规则系统、SentiWordNet 和 LLM 返回的 model 不可 pickle，不参与最优模型选择，仅在指标对比中展示。
 
 ## 大语言模型配置
 
-默认使用 DeepSeek，设置环境变量后即可启用：
+默认使用 DeepSeek，复制 `.env.example` 为 `.env` 并填入 API Key：
+
+```bash
+cp .env.example .env
+# 编辑 .env 填入你的 LLM_API_KEY
+```
+
+也可直接设置环境变量：
 
 ```bash
 export LLM_API_KEY="your-key"
@@ -122,7 +137,20 @@ export LLM_BASE_URL="https://api.deepseek.com"
 export LLM_MODEL="deepseek-chat"
 ```
 
-也支持其他 OpenAI 兼容厂商（智谱、通义千问、Moonshot 等），改 `LLM_BASE_URL` 和 `LLM_MODEL` 即可。不设 key 时 LLM 自动跳过。
+支持 OpenAI 兼容厂商（智谱、通义千问、Moonshot 等），改 `LLM_BASE_URL` 和 `LLM_MODEL` 即可。不设 key 时 LLM 自动跳过。
+
+## 可视化分析
+
+训练完成后运行 `analyze.py` 生成对比图表：
+
+```bash
+python analyze.py
+```
+
+会在 `B_output/charts/` 输出：
+- `model_comparison.png` — 所有模型 Accuracy/F1 对比柱状图
+- `new_feature_importance.png` — 新特征系数重要性（需新特征+LR 模型有结果）
+- `sentiwordnet_summary.png` — SentiWordNet 分析摘要
 
 ## 执行流程
 
@@ -133,11 +161,13 @@ train.py
   │     从 A_output/ 读取数据，校验文件完整性
   │
   ├── ② train_all_models()
-  │     依次执行 5 个模型，记录指标到 all_model_results
+  │     依次执行 7 个模型，记录指标到 all_model_results
   │     按 F1 选出最优的可序列化模型
   │
   └── ③ save_b_output()
         保存最优模型 + 全部指标 + 预测值 + 概率到 B_output/
+
+analyze.py  ← 训练后运行，读取 B_output/ 生成图表
 
 模型                   Accuracy        F1
 ----------------------------------------
@@ -145,6 +175,8 @@ train.py
 朴素贝叶斯              0.8560    0.8530
 逻辑回归                0.8893    0.8893  ← 最优
 特征选择+LR             0.8770    0.8770
+新特征+LR              0.8920    0.8920
+SentiWordNet           0.6810    0.7120
 大语言模型              0.8520    0.8480
 ----------------------------------------
 最优模型: LogisticRegression
