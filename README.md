@@ -70,6 +70,8 @@ vectorizer.pkl ──┘            predictions.npy         画图制表
 pip install -r requirements.txt
 ```
 
+依赖项：numpy, scipy, scikit-learn, nltk, openai, python-dotenv, matplotlib
+
 ### 2. 独立测试（不需要 A 模块）
 
 ```bash
