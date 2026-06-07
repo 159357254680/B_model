@@ -1,4 +1,4 @@
-"""A 模块：IMDB 真实数据预处理 —— 下载、清洗、划分、TF-IDF 向量化，输出到 A_output/"""
+"""A 模块：IMDB 真实数据预处理 —— 下载、清洗、三分划分、TF-IDF 向量化，输出到 A_output/"""
 import os
 import re
 import pickle
@@ -9,7 +9,10 @@ from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.model_selection import train_test_split
 from scipy import sparse
 
-from config import A_DIR, X_TRAIN_PATH, Y_TRAIN_PATH, X_TEST_PATH, Y_TEST_PATH, VECTORIZER_PATH
+from config import (A_DIR, X_TRAIN_PATH, Y_TRAIN_PATH, X_DEV_PATH, Y_DEV_PATH,
+                    X_TEST_PATH, Y_TEST_PATH, VECTORIZER_PATH,
+                    RAW_TRAIN_PATH, RAW_DEV_PATH, RAW_TEST_PATH,
+                    RAW_LABELS_TRAIN_PATH, RAW_LABELS_DEV_PATH, RAW_LABELS_TEST_PATH)
 
 IMDB_URL = "https://ai.stanford.edu/~amaas/data/sentiment/aclImdb_v1.tar.gz"
 DATA_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data")
@@ -24,7 +27,7 @@ def _download():
     if os.path.exists(TAR_PATH):
         print(f"已缓存: {TAR_PATH}")
         return
-    print(f"下载 IMDB 数据集 (约 80MB)...")
+    print("下载 IMDB 数据集 (约 80MB)...")
     urllib.request.urlretrieve(IMDB_URL, TAR_PATH)
     print("下载完成")
 
@@ -73,33 +76,49 @@ def main(max_features=5000):
     _extract()
     data = _load_reviews()
 
-    texts = np.array(data["text"])
+    texts = np.array(data["text"], dtype=object)
     labels = np.array(data["label"])
 
-    # 8:2 分层划分
-    x_train_raw, x_test_raw, y_train, y_test = train_test_split(
-        texts, labels, test_size=0.2, random_state=42, stratify=labels,
+    # 70/15/15 分层三分
+    x_temp, x_test_raw, y_temp, y_test = train_test_split(
+        texts, labels, test_size=0.15, random_state=42, stratify=labels,
     )
-    print(f"train: {len(x_train_raw)}, test: {len(x_test_raw)}")
+    x_train_raw, x_dev_raw, y_train, y_dev = train_test_split(
+        x_temp, y_temp, test_size=0.15 / 0.85, random_state=42, stratify=y_temp,
+    )
+    print(f"train: {len(x_train_raw)}, dev: {len(x_dev_raw)}, test: {len(x_test_raw)}")
 
-    vectorizer = TfidfVectorizer(max_features=max_features, ngram_range=(1, 2), stop_words="english", sublinear_tf=True)
+    vectorizer = TfidfVectorizer(max_features=max_features, ngram_range=(1, 2),
+                                  stop_words="english", sublinear_tf=True)
     x_train = vectorizer.fit_transform(x_train_raw)
+    x_dev = vectorizer.transform(x_dev_raw)
     x_test = vectorizer.transform(x_test_raw)
-    print(f"词汇量: {len(vectorizer.vocabulary_)}, x_train: {x_train.shape}, x_test: {x_test.shape}")
+    print(f"词汇量: {len(vectorizer.vocabulary_)}, train: {x_train.shape}, dev: {x_dev.shape}, test: {x_test.shape}")
 
+    # 保存稀疏特征
     sparse.save_npz(X_TRAIN_PATH, x_train)
+    sparse.save_npz(X_DEV_PATH, x_dev)
     sparse.save_npz(X_TEST_PATH, x_test)
     np.save(Y_TRAIN_PATH, y_train)
+    np.save(Y_DEV_PATH, y_dev)
     np.save(Y_TEST_PATH, y_test)
     with open(VECTORIZER_PATH, "wb") as f:
         pickle.dump(vectorizer, f)
 
+    # 保存原始文本供数据分析
+    np.save(RAW_TRAIN_PATH, x_train_raw)
+    np.save(RAW_DEV_PATH, x_dev_raw)
+    np.save(RAW_TEST_PATH, x_test_raw)
+    np.save(RAW_LABELS_TRAIN_PATH, y_train)
+    np.save(RAW_LABELS_DEV_PATH, y_dev)
+    np.save(RAW_LABELS_TEST_PATH, y_test)
+
     print(f"A_output/ 已就绪:")
-    print(f"  x_train.npz  shape={x_train.shape}")
-    print(f"  y_train.npy  shape={y_train.shape}, 分布={dict(zip(*np.unique(y_train, return_counts=True)))}")
-    print(f"  x_test.npz   shape={x_test.shape}")
-    print(f"  y_test.npy   shape={y_test.shape}, 分布={dict(zip(*np.unique(y_test, return_counts=True)))}")
-    print(f"  vectorizer.pkl")
+    for name, arr in [("x_train.npz", x_train), ("x_dev.npz", x_dev), ("x_test.npz", x_test)]:
+        print(f"  {name}  shape={arr.shape}")
+    for name, arr in [("y_train.npy", y_train), ("y_dev.npy", y_dev), ("y_test.npy", y_test)]:
+        print(f"  {name}  shape={arr.shape}, 分布={dict(zip(*np.unique(arr, return_counts=True)))}")
+    print(f"  vectorizer.pkl  + raw_*.npy (原始文本)")
 
 
 if __name__ == "__main__":

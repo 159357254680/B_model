@@ -1,7 +1,19 @@
-"""产生式规则系统 —— VADER 情感词典 + 自定义规则"""
+"""产生式规则系统 —— VADER + SentiWordNet + WordNet + 自定义规则"""
+import os
 import numpy as np
-from nltk.sentiment import SentimentIntensityAnalyzer
 from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score
+
+
+def _ensure_nltk_resources():
+    import nltk
+    nltk_data = os.path.expanduser("~/nltk_data")
+    if os.path.exists(nltk_data):
+        nltk.data.path.insert(0, nltk_data)
+    for res in ["vader_lexicon", "sentiwordnet", "wordnet", "omw-1.4"]:
+        try:
+            nltk.data.find(f"corpora/{res}") if res != "vader_lexicon" else nltk.data.find(f"sentiment/{res}")
+        except LookupError:
+            nltk.download(res, download_dir=nltk_data, quiet=True)
 
 
 class RuleBasedClassifier:
@@ -22,15 +34,24 @@ class RuleBasedClassifier:
 
     def __init__(self):
         import nltk
-        import os
-        nltk_data = os.path.expanduser("~/nltk_data")
-        if os.path.exists(nltk_data):
-            nltk.data.path.insert(0, nltk_data)
-        try:
-            self.vader = SentimentIntensityAnalyzer()
-        except LookupError:
-            nltk.download("vader_lexicon", download_dir=nltk_data, quiet=True)
-            self.vader = SentimentIntensityAnalyzer()
+        _ensure_nltk_resources()
+        from nltk.sentiment import SentimentIntensityAnalyzer
+        self.vader = SentimentIntensityAnalyzer()
+
+    def _sentiwordnet_score(self, text):
+        from nltk.corpus import sentiwordnet as swn
+        words = text.lower().split()
+        pos_total, neg_total = 0.0, 0.0
+        count = 0
+        for w in words:
+            synsets = list(swn.senti_synsets(w))
+            if synsets:
+                pos_total += sum(s.pos_score() for s in synsets) / len(synsets)
+                neg_total += sum(s.neg_score() for s in synsets) / len(synsets)
+                count += 1
+        if count == 0:
+            return 0.0
+        return (pos_total - neg_total) / count
 
     def predict(self, texts):
         preds = []
@@ -40,16 +61,13 @@ class RuleBasedClassifier:
             pos_hits = len(words & self.POS)
             neg_hits = len(words & self.NEG)
             lexicon_score = (pos_hits - neg_hits) / max(pos_hits + neg_hits, 1)
-            final = 0.5 * vader_score + 0.5 * lexicon_score
+            swn_score = self._sentiwordnet_score(text)
+            final = 0.4 * vader_score + 0.3 * lexicon_score + 0.3 * swn_score
             preds.append(1 if final >= 0 else 0)
         return np.array(preds)
 
 
 def train_rule_based(x_train, y_train, x_test, y_test, vectorizer=None):
-    """规则系统不需要训练，直接用 VADER + 关键词做推理。
-    但需要 vectorizer 来把稀疏矩阵还原成文本。
-    """
-    # 从 TF-IDF 稀疏矩阵重建文本
     if vectorizer is not None:
         texts = vectorizer.inverse_transform(x_test)
         texts = [" ".join(words) for words in texts]
@@ -61,6 +79,7 @@ def train_rule_based(x_train, y_train, x_test, y_test, vectorizer=None):
     probas = np.column_stack([1 - preds, preds]).astype(float)
 
     metrics = {
+        "model": "RuleBased(VADER+SentiWordNet+Lexicon)",
         "accuracy":  accuracy_score(y_test, preds),
         "precision": precision_score(y_test, preds, zero_division=0),
         "recall":    recall_score(y_test, preds, zero_division=0),

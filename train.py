@@ -1,4 +1,4 @@
-"""B 模块主程序 —— 读入 A 的数据，训练 5 种模型，输出 C 需要的文件。
+"""B 模块主程序 —— 读入 A 的数据，训练 8 种模型，输出 C 需要的文件。
 
 用法:
     python train.py              # 正常模式，读 A_output/，写 B_output/
@@ -25,6 +25,9 @@ def load_a_output():
     print("B 模块: 加载 A 产出的数据")
     print("=" * 50)
 
+    # 尝试加载 dev 集（新格式），不存在则回退到旧格式
+    has_dev = os.path.exists(config.X_DEV_PATH)
+
     files = {
         "x_train": config.X_TRAIN_PATH,
         "y_train": config.Y_TRAIN_PATH,
@@ -32,6 +35,9 @@ def load_a_output():
         "y_test":  config.Y_TEST_PATH,
         "vectorizer": config.VECTORIZER_PATH,
     }
+    if has_dev:
+        files["x_dev"] = config.X_DEV_PATH
+        files["y_dev"] = config.Y_DEV_PATH
 
     for name, path in files.items():
         if not os.path.exists(path):
@@ -49,9 +55,16 @@ def load_a_output():
 
     print(f"  x_train: {x_train.shape}, y_train: {y_train.shape}, "
           f"分布: {dict(zip(*np.unique(y_train, return_counts=True)))}")
+    if has_dev:
+        x_dev = sparse.load_npz(config.X_DEV_PATH)
+        y_dev = np.load(config.Y_DEV_PATH)
+        print(f"  x_dev:   {x_dev.shape}, y_dev:   {y_dev.shape}, "
+              f"分布: {dict(zip(*np.unique(y_dev, return_counts=True)))}")
+    else:
+        x_dev, y_dev = None, None
     print(f"  x_test:  {x_test.shape}, y_test:  {y_test.shape}, "
           f"分布: {dict(zip(*np.unique(y_test, return_counts=True)))}")
-    return x_train, y_train, x_test, y_test, vectorizer
+    return x_train, y_train, x_dev, y_dev, x_test, y_test, vectorizer
 
 
 def train_all_models(x_train, y_train, x_test, y_test, vectorizer):
@@ -61,7 +74,7 @@ def train_all_models(x_train, y_train, x_test, y_test, vectorizer):
     from models.feature_selection import train_with_feature_selection
     from models.logistic_regression_features import train_logistic_regression_features
     from models.sentiwordnet import train_sentiwordnet
-    from models.llm import train_llm
+    from models.llm import train_llm, train_llm_structured
 
     models = [
         ("产生式规则系统", train_rule_based),
@@ -71,6 +84,7 @@ def train_all_models(x_train, y_train, x_test, y_test, vectorizer):
         ("新特征+LR",      train_logistic_regression_features),
         ("SentiWordNet",   train_sentiwordnet),
         ("大语言模型",     train_llm),
+        ("大语言模型(结构化)", train_llm_structured),
     ]
 
     all_results = {}
@@ -80,6 +94,7 @@ def train_all_models(x_train, y_train, x_test, y_test, vectorizer):
     best_probas = None
     best_f1 = -1
 
+    nonpicklable = {"产生式规则系统", "大语言模型", "大语言模型(结构化)", "SentiWordNet"}
     kwargs = {"vectorizer": vectorizer}
 
     for name, train_fn in models:
@@ -89,8 +104,7 @@ def train_all_models(x_train, y_train, x_test, y_test, vectorizer):
             all_results[name] = metrics
             print(f"  结果: acc={metrics['accuracy']:.4f}  f1={metrics['f1']:.4f}")
 
-            # 规则系统和 LLM 不能 pickle，不参与最优模型选择
-            if metrics["f1"] > best_f1 and name not in ("产生式规则系统", "大语言模型", "SentiWordNet"):
+            if metrics["f1"] > best_f1 and name not in nonpicklable:
                 best_f1 = metrics["f1"]
                 best_model = model
                 best_metrics = metrics
@@ -144,7 +158,7 @@ def save_b_output(model, metrics, preds, probas, all_results):
 
 
 def main():
-    parser = argparse.ArgumentParser(description="B 模块: 5 模型训练")
+    parser = argparse.ArgumentParser(description="B 模块: 8 模型训练")
     parser.add_argument("--mock", action="store_true",
                         help="先生成模拟 A 数据，再训练")
     args = parser.parse_args()
@@ -154,7 +168,7 @@ def main():
         from mock_data import make_mock_data
         make_mock_data()
 
-    x_train, y_train, x_test, y_test, vectorizer = load_a_output()
+    x_train, y_train, _x_dev, _y_dev, x_test, y_test, vectorizer = load_a_output()
     best_model, best_metrics, best_preds, best_probas, all_results = \
         train_all_models(x_train, y_train, x_test, y_test, vectorizer)
     save_b_output(best_model, best_metrics, best_preds, best_probas, all_results)
@@ -162,14 +176,14 @@ def main():
     print("\n" + "=" * 50)
     print("模型对比汇总")
     print("=" * 50)
-    print(f"{'模型':<20} {'Accuracy':>9} {'F1':>9}")
-    print("-" * 40)
+    print(f"{'模型':<22} {'Accuracy':>9} {'F1':>9}")
+    print("-" * 42)
     for name, m in all_results.items():
         if "error" in m:
-            print(f"{name:<20} {'ERROR':>9} {'-':>9}")
+            print(f"{name:<22} {'ERROR':>9} {'-':>9}")
         else:
-            print(f"{name:<20} {m['accuracy']:>9.4f} {m['f1']:>9.4f}")
-    print("-" * 40)
+            print(f"{name:<22} {m['accuracy']:>9.4f} {m['f1']:>9.4f}")
+    print("-" * 42)
     best_name = best_metrics.get("model", type(best_model).__name__) if best_metrics else "N/A"
     print(f"最优模型: {best_name}")
     print(f"B_output/ 已就绪，可交付给 C 模块。")
