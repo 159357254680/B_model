@@ -2,6 +2,8 @@ services:
   b_model:
     build: .
     volumes:
+      - ./data:/app/data
+      - ./A_output:/app/A_output
       - ./B_output:/app/B_output
       - ./.env:/app/.env:ro
     environment:
