@@ -20,6 +20,9 @@ fi
 
 MODE=${1:-full}
 
+echo "=== 构建 / 更新镜像 ==="
+docker compose build
+
 case $MODE in
   mock)
     echo "=== Docker: mock 模式 ==="

@@ -16,6 +16,9 @@ if "%1"=="" (
     exit /b 1
 )
 
+echo === 构建 / 更新镜像 ===
+docker compose build
+
 if "%1"=="mock" (
     echo === Docker: mock 模式 ===
     docker compose run --rm b_model python train.py --mock
