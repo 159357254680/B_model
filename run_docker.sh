@@ -1,6 +1,23 @@
 #!/bin/bash
 set -e
 
+if ! command -v docker &> /dev/null; then
+    echo "=============================================="
+    echo "  未检测到 Docker，请先安装："
+    echo "  macOS:   brew install docker"
+    echo "  Windows: https://www.docker.com/products/docker-desktop/"
+    echo "  Linux:   curl -fsSL https://get.docker.com | sh"
+    echo "=============================================="
+    exit 1
+fi
+
+if ! docker compose version &> /dev/null; then
+    echo "=============================================="
+    echo "  Docker 版本过旧，不支持 docker compose，请升级"
+    echo "=============================================="
+    exit 1
+fi
+
 MODE=${1:-full}
 
 case $MODE in
