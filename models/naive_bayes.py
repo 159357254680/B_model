@@ -18,7 +18,7 @@ def train_naive_bayes(x_train, y_train, x_test, y_test, **_kw):
     for name, model in candidates:
         grid = GridSearchCV(
             model, {"alpha": [0.05, 0.1, 0.5, 1.0, 2.0]},
-            cv=3, scoring="f1", n_jobs=-1
+            cv=3, scoring="f1", n_jobs=1
         )
         grid.fit(x_train, y_train)
         preds = grid.predict(x_test)

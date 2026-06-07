@@ -30,7 +30,7 @@ def train_with_feature_selection(x_train, y_train, x_test, y_test, vectorizer=No
                 ("clf", LogisticRegression(max_iter=2000, random_state=42)),
             ])
             # 简单网格搜索 C
-            grid = GridSearchCV(pipe, {"clf__C": [0.5, 1.0, 3.0]}, cv=3, scoring="f1", n_jobs=-1)
+            grid = GridSearchCV(pipe, {"clf__C": [0.5, 1.0, 3.0]}, cv=3, scoring="f1", n_jobs=1)
             grid.fit(x_train, y_train)
             preds = grid.predict(x_test)
             f1 = f1_score(y_test, preds, zero_division=0)

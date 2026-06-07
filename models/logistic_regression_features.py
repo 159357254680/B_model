@@ -86,7 +86,7 @@ def train_logistic_regression_features(x_train, y_train, x_test, y_test, vectori
     lr = LogisticRegression(max_iter=2000, random_state=42)
     grid = GridSearchCV(
         lr, {"C": [0.1, 0.5, 1.0, 3.0, 5.0, 10.0]},
-        cv=3, scoring="f1", n_jobs=-1,
+        cv=3, scoring="f1", n_jobs=1,
     )
     grid.fit(x_train_combined, y_train)
     print(f"    best_C={grid.best_params_['C']:.2f}, best_cv_f1={grid.best_score_:.4f}")
