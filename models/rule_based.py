@@ -1,7 +1,10 @@
 """产生式规则系统 —— VADER + SentiWordNet + WordNet + 自定义规则"""
 import os
+import warnings
 import numpy as np
 from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score
+
+warnings.filterwarnings("ignore", message=".*pathsec.*")
 
 
 def _ensure_nltk_resources():

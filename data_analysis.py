@@ -1,9 +1,12 @@
 """数据分析 —— 训练集分布、Top10词频、PMI、词性分析"""
 import os
 import json
+import warnings
 import numpy as np
 from collections import Counter
 import nltk
+
+warnings.filterwarnings("ignore", message=".*pathsec.*")
 from config import (RAW_TRAIN_PATH, RAW_DEV_PATH, RAW_TEST_PATH,
                     RAW_LABELS_TRAIN_PATH, RAW_LABELS_DEV_PATH, RAW_LABELS_TEST_PATH,
                     B_DIR)

@@ -1,8 +1,11 @@
 """SentiWordNet 结果分析 —— 用 SentiWordNet 分析所有模型（除产生式系统外）的输出"""
 import os
 import json
+import warnings
 import numpy as np
 from config import B_DIR, RAW_TEST_PATH, RAW_LABELS_TEST_PATH, PARAMS_PATH
+
+warnings.filterwarnings("ignore", message=".*pathsec.*")
 
 OUT_DIR = os.path.join(B_DIR, "analysis")
 os.makedirs(OUT_DIR, exist_ok=True)

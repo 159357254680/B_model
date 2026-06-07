@@ -1,6 +1,9 @@
 """SentiWordNet 情感分析 —— 基于 WordNet 情感词典打分"""
+import warnings
 import numpy as np
 from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score
+
+warnings.filterwarnings("ignore", message=".*pathsec.*")
 
 
 def _ensure_swn():
