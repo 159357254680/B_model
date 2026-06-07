@@ -24,7 +24,7 @@ def main():
         return
 
     plt.rcParams["font.family"] = "sans-serif"
-    plt.rcParams["font.sans-serif"] = ["Arial Unicode MS", "Heiti SC", "SimHei", "DejaVu Sans"]
+    plt.rcParams["font.sans-serif"] = ["Noto Sans CJK SC", "Noto Sans CJK JP", "Arial Unicode MS", "Heiti SC", "SimHei", "DejaVu Sans"]
     plt.rcParams["axes.unicode_minus"] = False
 
     models_order = [

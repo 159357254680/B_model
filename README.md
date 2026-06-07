@@ -56,14 +56,11 @@ raw_*.npy  ───→ data_analysis.py   probas.npy             错误分析
 ### Docker（推荐，零配置）
 
 ```bash
-# 模拟数据快速测试（30 秒）
+# macOS / Linux
 ./run_docker.sh mock
 
-# 完整流程（IMDB 真实数据 + 训练 + 全链路分析）
-./run_docker.sh full
-
-# 进入容器手动操作
-./run_docker.sh interactive
+# Windows
+run_docker.bat mock
 ```
 
 如需要 LLM 模型：`cp .env.example .env` 并填入 API Key，Docker 会自动挂载。不需要 LLM 则跳过，6 个模型正常运行。
