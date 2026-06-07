@@ -1,6 +1,7 @@
 # 生成数据（A 模块会重新生成，C 模块会重新计算）
 A_output/
 B_output/
+data/
 
 # Python
 __pycache__/

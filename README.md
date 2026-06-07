@@ -11,9 +11,10 @@ B 模块负责从 A 模块接收预处理后的数据，训练并对比 7 种分
 ```
 B_model/
 ├── config.py               # 路径和接口约定
-├── train.py                # 主程序入口
+├── a_preprocess.py         # A 模块：IMDB 真实数据下载 + 预处理
+├── train.py                # B 模块：主程序入口
 ├── analyze.py              # 可视化分析（模型对比图）
-├── mock_data.py            # 模拟 A 模块数据（独立测试用）
+├── mock_data.py            # 模拟 A 数据（独立测试用，已废弃）
 ├── requirements.txt        # Python 依赖
 ├── models/                 # 7 种模型实现
 │   ├── rule_based.py                # 产生式规则系统
@@ -72,23 +73,39 @@ pip install -r requirements.txt
 
 依赖项：numpy, scipy, scikit-learn, nltk, openai, python-dotenv, matplotlib
 
-### 2. 独立测试（不需要 A 模块）
+### 2. 准备数据（二选一）
+
+**真实数据（IMDB 5 万条影评）**：
+
+```bash
+python a_preprocess.py
+```
+
+自动下载 IMDB 数据集（~80MB），清洗、划分、TF-IDF 向量化，输出到 `A_output/`。
+
+**模拟数据（快速自测）**：
 
 ```bash
 python train.py --mock
 ```
 
-会自动在 `A_output/` 生成模拟数据，训练全部模型，结果写入 `B_output/`。
+用固定正负词拼评论，不依赖外部数据，但信号太强（F1 全 1.0），仅用于验证流程。
 
-### 3. 正式运行
+### 3. 训练
 
 ```bash
 python train.py
 ```
 
-前提是 A 已将 5 个文件放入 `A_output/`。
+前提是 `A_output/` 已有 5 个文件（上一步生成）。
 
-### 4. 查看结果
+### 4. 可视化
+
+```bash
+python analyze.py
+```
+
+### 5. 查看结果
 
 `B_output/best_params.json` 包含最优模型参数和所有模型指标对比：
 
