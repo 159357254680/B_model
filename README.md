@@ -18,6 +18,9 @@ B_model/
 ├── sentiwordnet_analysis.py        # SentiWordNet 结果分析
 ├── mock_data.py                    # 模拟数据（快速自测）
 ├── requirements.txt                # Python 依赖
+├── Dockerfile                      # Docker 镜像（Python 3.14）
+├── docker-compose.yml              # Docker 编排
+├── run_docker.sh                   # Docker 一键运行脚本
 ├── .env.example                    # LLM 配置模板
 ├── models/                         # 8 种模型实现
 │   ├── rule_based.py                # 产生式规则系统（VADER + SentiWordNet + 关键词）
@@ -50,26 +53,37 @@ raw_*.npy  ───→ data_analysis.py   probas.npy             错误分析
 
 ## 使用方式
 
-### 1. 安装依赖
+### Docker（推荐，零配置）
+
+```bash
+# 模拟数据快速测试（30 秒）
+./run_docker.sh mock
+
+# 完整流程（IMDB 真实数据 + 训练 + 全链路分析）
+./run_docker.sh full
+
+# 进入容器手动操作
+./run_docker.sh interactive
+```
+
+如需要 LLM 模型：`cp .env.example .env` 并填入 API Key，Docker 会自动挂载。不需要 LLM 则跳过，6 个模型正常运行。
+
+### 本地运行
+
+Python 3.14，安装依赖：
 
 ```bash
 pip install -r requirements.txt
 ```
 
-依赖项：numpy, scipy, scikit-learn, nltk, openai, python-dotenv, matplotlib
-
-### 2. 运行全链路（一条命令）
+全链路：
 
 ```bash
-# 真实数据
-python a_preprocess.py   # 先下载 IMDB 数据
-python train.py          # 自动完成：训练 + 数据分析 + SentiWordNet分析 + 可视化
-
-# 模拟数据
-python train.py --mock   # 一步完成（含自动分析）
+python a_preprocess.py    # 下载 IMDB（仅首次）
+python train.py           # 训练 + 数据分析 + SWN分析 + 可视化
+# 或模拟数据快速自测
+python train.py --mock
 ```
-
-`train.py` 自动串行执行：加载数据 → 训练 8 模型 → 保存输出 → LLM结构化总结 → 数据分析 → SentiWordNet结果分析 → 可视化图表。
 
 ### 3. 输出文件
 

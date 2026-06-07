@@ -1,0 +1,8 @@
+services:
+  b_model:
+    build: .
+    volumes:
+      - ./B_output:/app/B_output
+      - ./.env:/app/.env:ro
+    environment:
+      - NLTK_DATA=/usr/local/share/nltk_data
