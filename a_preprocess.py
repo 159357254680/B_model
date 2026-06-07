@@ -69,7 +69,7 @@ def _load_reviews():
     return data
 
 
-def main(max_features=5000):
+def main(max_features=5000, max_samples=5000):
     print("=" * 50)
     print("A 模块: IMDB 真实数据预处理")
     print("=" * 50)
@@ -78,8 +78,20 @@ def main(max_features=5000):
     _extract()
     data = _load_reviews()
 
-    texts = np.array(data["text"], dtype=object)
-    labels = np.array(data["label"])
+    texts_all = np.array(data["text"], dtype=object)
+    labels_all = np.array(data["label"])
+
+    # 抽样：每类取 max_samples/2 条
+    n_per_class = max_samples // 2
+    pos_idx = np.where(labels_all == 1)[0]
+    neg_idx = np.where(labels_all == 0)[0]
+    rng = np.random.RandomState(42)
+    sampled_pos = rng.choice(pos_idx, min(n_per_class, len(pos_idx)), replace=False)
+    sampled_neg = rng.choice(neg_idx, min(n_per_class, len(neg_idx)), replace=False)
+    keep = np.sort(np.concatenate([sampled_pos, sampled_neg]))
+    texts = texts_all[keep]
+    labels = labels_all[keep]
+    print(f"抽样 {len(texts)} 条 (正={int(labels.sum())}, 负={int(len(labels)-labels.sum())})")
 
     # 70/15/15 分层三分
     x_temp, x_test_raw, y_temp, y_test = train_test_split(
