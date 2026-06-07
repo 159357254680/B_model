@@ -4,7 +4,7 @@
 
 B 模块负责从 A 模块接收预处理后的数据，训练并对比 8 种分类模型，选出可序列化的最优模型交付给 C 模块。
 
-**核心定位**：A 数据预处理 → B 训练 + 分析 → C 评估。含数据分析和 SentiWordNet 结果分析。
+**核心定位**：A 数据预处理 → B 训练 + 全链路自动分析。`python train.py` 一条命令完成所有步骤。
 
 ## 项目结构
 
@@ -58,59 +58,33 @@ pip install -r requirements.txt
 
 依赖项：numpy, scipy, scikit-learn, nltk, openai, python-dotenv, matplotlib
 
-### 2. 数据准备
-
-**真实数据（推荐）**：
+### 2. 运行全链路（一条命令）
 
 ```bash
-python a_preprocess.py
+# 真实数据
+python a_preprocess.py   # 先下载 IMDB 数据
+python train.py          # 自动完成：训练 + 数据分析 + SentiWordNet分析 + 可视化
+
+# 模拟数据
+python train.py --mock   # 一步完成（含自动分析）
 ```
 
-自动下载 IMDB 数据集（~80MB, 5万条），清洗、70/15/15 三分、TF-IDF 向量化，输出 14 个文件到 `A_output/`。
+`train.py` 自动串行执行：加载数据 → 训练 8 模型 → 保存输出 → LLM结构化总结 → 数据分析 → SentiWordNet结果分析 → 可视化图表。
 
-**模拟数据（快速自测）**：
+### 3. 输出文件
 
-```bash
-python train.py --mock
-```
-
-### 3. 数据分析
-
-```bash
-python data_analysis.py
-```
-
-输出 `B_output/analysis/data_analysis.json`，包含：
-- 训练/开发/测试集分布
-- 正负向情感 Top10 高频词
-- PMI（点互信息）Top10 词
-- 词性分布（NN, JJ, RB 等）
-
-### 4. 训练
-
-```bash
-python train.py
-```
-
-### 5. 可视化
-
-```bash
-python analyze.py
-```
-
-输出 `B_output/charts/`：
-- `model_comparison.png` — 所有模型 Accuracy/F1 对比柱状图
-- `new_feature_importance.png` — 新特征系数重要性
-- `sentiwordnet_summary.png` — SentiWordNet 分析摘要
-- `llm_structured_topics.png` — LLM 结构化输出主题分布（需 API key）
-
-### 6. SentiWordNet 结果分析
-
-```bash
-python sentiwordnet_analysis.py
-```
-
-用 SentiWordNet 分析所有模型（除产生式系统外）在测试集上的输出，计算正向词数量与预测正向的相关度。输出 `B_output/analysis/sentiwordnet_analysis.json`。
+| 产物 | 路径 | 说明 |
+|------|------|------|
+| 最优模型 | `B_output/best_model.pkl` | F1 最高可序列化模型 |
+| 全部指标 | `B_output/best_params.json` | 所有模型指标对比 |
+| 预测结果 | `B_output/predictions.npy` + `probas.npy` | 测试集预测 |
+| 数据分析 | `B_output/analysis/data_analysis.json` | 分布/Top词/PMI/词性 |
+| SentiWordNet分析 | `B_output/analysis/sentiwordnet_analysis.json` | 每个模型的正向词密度对比 |
+| LLM总结 | `B_output/analysis/llm_structured_summary.json` | 结构化输出主题/情感/置信度 |
+| 对比图 | `B_output/charts/model_comparison.png` | 模型 Accuracy/F1 柱状图 |
+| 特征图 | `B_output/charts/new_feature_importance.png` | 新特征系数 |
+| SentiWordNet图 | `B_output/charts/sentiwordnet_summary.png` | SWN 摘要 |
+| LLM主题图 | `B_output/charts/llm_structured_topics.png` | 结构化输出主题分布 |
 
 ## 接口契约
 
@@ -180,11 +154,16 @@ cp .env.example .env
 ## 执行流程
 
 ```
-a_preprocess.py     → 下载 IMDB → 清洗 → 70/15/15 三分 → TF-IDF → A_output/
-data_analysis.py    → 分布/Top词/PMI/词性 → B_output/analysis/
-train.py            → 8 模型训练 → 选最优 → B_output/
-analyze.py          → 4 张对比图 → B_output/charts/
-sentiwordnet_analysis.py → SentiWordNet 交叉分析 → B_output/analysis/
+a_preprocess.py → 下载 IMDB → 清洗 → 70/15/15 三分 → TF-IDF → A_output/
+
+train.py (全链路):
+  ├── ① 加载 A_output/ 数据
+  ├── ② 训练 8 个模型，保存所有预测
+  ├── ③ 模型对比汇总表
+  ├── ④ LLM 结构化输出总结（需 API key）
+  ├── ⑤ 数据分析（分布 / Top10词 / PMI / 词性）
+  ├── ⑥ SentiWordNet 结果分析（按模型预测分组）
+  └── ⑦ 可视化图表（4 张 PNG）
 
 模型                         Accuracy        F1
 ----------------------------------------------

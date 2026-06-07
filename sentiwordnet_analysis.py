@@ -7,6 +7,8 @@ from config import B_DIR, RAW_TEST_PATH, RAW_LABELS_TEST_PATH, PARAMS_PATH
 OUT_DIR = os.path.join(B_DIR, "analysis")
 os.makedirs(OUT_DIR, exist_ok=True)
 
+ALL_PREDS_FILE = os.path.join(B_DIR, "all_predictions.json")
+
 
 def _ensure_swn():
     import nltk
@@ -24,8 +26,8 @@ def _ensure_swn():
 def _text_swn_scores(text):
     from nltk.corpus import sentiwordnet as swn
     words = text.lower().split()
-    pos_total, neg_total, pos_words, neg_words = 0.0, 0.0, 0, 0
-    count = 0
+    pos_total, neg_total = 0.0, 0.0
+    pos_words, neg_words, count = 0, 0, 0
     for w in words:
         synsets = list(swn.senti_synsets(w))
         if synsets:
@@ -49,97 +51,68 @@ def _text_swn_scores(text):
     }
 
 
-def main():
-    print("=" * 50)
+def run_sentiwordnet_analysis():
+    print("\n" + "=" * 50)
     print("SentiWordNet 结果分析")
     print("=" * 50)
     _ensure_swn()
 
-    # 读取原始测试文本和标签
     raw_test = np.load(RAW_TEST_PATH, allow_pickle=True)
     y_test = np.load(RAW_LABELS_TEST_PATH, allow_pickle=True)
 
-    # 读取模型结果
-    params = {}
-    if os.path.exists(PARAMS_PATH):
-        with open(PARAMS_PATH, "r", encoding="utf-8") as f:
-            params = json.load(f)
-    all_results = params.get("all_model_results", {})
-    if not all_results:
-        print("未找到模型结果，请先运行 train.py")
+    # 读取每个模型的预测
+    if not os.path.exists(ALL_PREDS_FILE):
+        print("未找到 all_predictions.json，跳过")
         return
 
-    # 读取预测和概率
-    preds = None
-    probas = None
-    preds_path = os.path.join(B_DIR, "predictions.npy")
-    probas_path = os.path.join(B_DIR, "probas.npy")
-    if os.path.exists(preds_path):
-        preds = np.load(preds_path)
-    if os.path.exists(probas_path):
-        probas = np.load(probas_path)
+    with open(ALL_PREDS_FILE, "r") as f:
+        all_preds = json.load(f)
 
-    # 排除产生式规则系统
-    exclude = {"产生式规则系统", "大语言模型"}
-    models_to_analyze = [n for n in all_results if n not in exclude and "error" not in all_results[n]]
-
+    exclude = {"产生式规则系统", "大语言模型", "大语言模型(结构化)"}
     analysis = {}
-    for model_name in models_to_analyze:
-        print(f"\n分析 {model_name} ...")
-        # 对于每个模型，取测试集中预测为正向的样本，计算 SentiWordNet 相关度
-        pos_samples = []
-        neg_samples = []
-        for i in range(min(len(raw_test), 500)):  # 抽样500条加速
-            swn_scores = _text_swn_scores(str(raw_test[i]))
-            true_label = int(y_test[i])
-            pos_samples.append({
-                "true_label": true_label,
-                "swn_pos_words": swn_scores["pos_word_count"],
-                "swn_neg_words": swn_scores["neg_word_count"],
-                "swn_sentiment": swn_scores["sentiment"],
-            })
 
-        pos_pred = [s for s in pos_samples if s["true_label"] == 1]
-        neg_pred = [s for s in pos_samples if s["true_label"] == 0]
+    for model_name, preds_list in all_preds.items():
+        if model_name in exclude:
+            continue
+        preds = np.array(preds_list)
+        n = min(len(raw_test), len(preds), 500)
 
-        avg_pos_words_in_pos = np.mean([s["swn_pos_words"] for s in pos_pred]) if pos_pred else 0
-        avg_pos_words_in_neg = np.mean([s["swn_pos_words"] for s in neg_pred]) if neg_pred else 0
-        avg_swn_sentiment_pos = np.mean([s["swn_sentiment"] for s in pos_pred]) if pos_pred else 0
-        avg_swn_sentiment_neg = np.mean([s["swn_sentiment"] for s in neg_pred]) if neg_pred else 0
+        pred_pos = []
+        pred_neg = []
+        for i in range(n):
+            swn = _text_swn_scores(str(raw_test[i]))
+            if preds[i] == 1:
+                pred_pos.append(swn)
+            else:
+                pred_neg.append(swn)
 
-        # 计算 SentiWordNet 预测准确率（sentiment > 0 → 正向）
-        swn_preds = [1 if s["swn_sentiment"] > 0 else 0 for s in pos_samples]
-        swn_true = [s["true_label"] for s in pos_samples]
-        swn_acc = sum(1 for p, t in zip(swn_preds, swn_true) if p == t) / len(swn_true)
+        avg_pos_in_pos = np.mean([s["pos_word_count"] for s in pred_pos]) if pred_pos else 0
+        avg_pos_in_neg = np.mean([s["pos_word_count"] for s in pred_neg]) if pred_neg else 0
+        avg_swn_in_pos = np.mean([s["sentiment"] for s in pred_pos]) if pred_pos else 0
+        avg_swn_in_neg = np.mean([s["sentiment"] for s in pred_neg]) if pred_neg else 0
 
         analysis[model_name] = {
-            "avg_pos_words_true_positive": round(float(avg_pos_words_in_pos), 2),
-            "avg_pos_words_true_negative": round(float(avg_pos_words_in_neg), 2),
-            "avg_swn_sentiment_true_positive": round(float(avg_swn_sentiment_pos), 4),
-            "avg_swn_sentiment_true_negative": round(float(avg_swn_sentiment_neg), 4),
-            "sentiwordnet_baseline_accuracy": round(float(swn_acc), 4),
+            "pred_positive_count": len(pred_pos),
+            "pred_negative_count": len(pred_neg),
+            "avg_pos_words_when_pred_positive": round(float(avg_pos_in_pos), 2),
+            "avg_pos_words_when_pred_negative": round(float(avg_pos_in_neg), 2),
+            "avg_swn_sentiment_when_pred_positive": round(float(avg_swn_in_pos), 4),
+            "avg_swn_sentiment_when_pred_negative": round(float(avg_swn_in_neg), 4),
+            "sentiment_gap": round(float(avg_swn_in_pos - avg_swn_in_neg), 4),
         }
-        print(f"  真实正向: avg_pos_words={avg_pos_words_in_pos:.1f}, swn_sentiment={avg_swn_sentiment_pos:.4f}")
-        print(f"  真实负向: avg_pos_words={avg_pos_words_in_neg:.1f}, swn_sentiment={avg_swn_sentiment_neg:.4f}")
-        print(f"  SentiWordNet 基线准确率: {swn_acc:.4f}")
-
-    # 汇总对比
-    summary = {}
-    if preds is not None and probas is not None:
-        for i in range(min(len(raw_test), 500)):
-            s = _text_swn_scores(str(raw_test[i]))
-            s["true_label"] = int(y_test[i])
-            s["best_pred"] = int(preds[i]) if i < len(preds) else -1
-            s["best_confidence"] = float(probas[i][1]) if i < len(probas) else 0
-            summary[str(i)] = s
+        print(f"  {model_name}: pred_pos={len(pred_pos)}, "
+              f"pos_words(pos_pred)={avg_pos_in_pos:.1f}, "
+              f"pos_words(neg_pred)={avg_pos_in_neg:.1f}, "
+              f"gap={avg_swn_in_pos - avg_swn_in_neg:.4f}")
 
     out_path = os.path.join(OUT_DIR, "sentiwordnet_analysis.json")
     with open(out_path, "w", encoding="utf-8") as f:
-        json.dump({
-            "model_analysis": analysis,
-            "per_sample_summary": {k: summary[k] for k in list(summary.keys())[:20]},
-        }, f, ensure_ascii=False, indent=2)
-    print(f"\n结果已保存: {out_path}")
+        json.dump(analysis, f, ensure_ascii=False, indent=2)
+    print(f"  结果已保存: {out_path}")
+
+
+def main():
+    run_sentiwordnet_analysis()
 
 
 if __name__ == "__main__":
